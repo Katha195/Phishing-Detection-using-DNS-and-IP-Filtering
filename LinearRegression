@@ -1,0 +1,114 @@
+import pandas as pd
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve, auc
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
+import seaborn as sns
+import ipaddress
+
+# Load the dataset from the Excel file
+from google.colab import files
+uploaded = files.upload()
+df = pd.read_excel('urls_dataset5.xlsx')
+
+# Print initial DataFrame shape and contents
+print("Initial DataFrame shape:", df.shape)
+print("First few rows of the DataFrame:")
+print(df.head())
+
+# Check the columns and their names
+print("\nDataFrame Columns:", df.columns)
+
+# Rename columns to match the expected names
+df.columns = ['url', 'ip_address', 'label', 'is_phishing']
+
+# Drop any rows with missing values if they exist
+df.dropna(inplace=True)
+
+# Define a function to clean IP addresses
+def clean_ip(ip):
+    try:
+        # Remove leading zeros and convert IP to integer
+        ip = ipaddress.IPv4Address(ip)
+        return int(ip)
+    except ipaddress.AddressValueError:
+        # Handle invalid IP address format
+        return None
+
+# Apply the function to the IP address column and drop rows with invalid IPs
+df['ip_address'] = df['ip_address'].apply(clean_ip)
+df = df.dropna(subset=['ip_address'])
+
+# Print the cleaned DataFrame
+print("\nDataFrame after cleaning IP addresses:")
+print(df.head())
+
+# Define the features and target
+X = df[['ip_address']]
+y = df['is_phishing']
+
+# Check if there are enough samples
+if X.shape[0] == 0:
+    raise ValueError("The feature set is empty. Please check your dataset.")
+
+# Scale features
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+
+# Print shapes of training and testing sets
+print("\nX_train shape:", X_train.shape)
+print("X_test shape:", X_test.shape)
+print("y_train shape:", y_train.shape)
+print("y_test shape:", y_test.shape)
+
+# Train a machine learning model
+clf = LogisticRegression(random_state=42)
+clf.fit(X_train, y_train)
+
+# Evaluate the model
+y_pred = clf.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+
+# Print model evaluation
+print("\nLogistic Regression Accuracy:", accuracy)
+print("Predictions:", y_pred)
+print("Actual values:", y_test.values)
+print("Confusion Matrix:")
+print(confusion_matrix(y_test, y_pred))
+
+# Plot confusion matrix
+def plot_confusion_matrix(cm, classes):
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=classes, yticklabels=classes)
+    plt.xlabel('Predicted Label')
+    plt.ylabel('True Label')
+    plt.title('Confusion Matrix')
+    plt.show()
+
+# Generate and plot the confusion matrix
+cm = confusion_matrix(y_test, y_pred)
+class_names = ['Legitimate', 'Phishing']
+plot_confusion_matrix(cm, class_names)
+
+# Optional: Plot ROC Curve
+if len(y_test) > 0 and len(X_test) > 0:
+    # Compute ROC curve and ROC area for the positive class
+    fpr, tpr, _ = roc_curve(y_test, clf.predict_proba(X_test)[:,1])
+    roc_auc = auc(fpr, tpr)
+
+    plt.figure()
+    plt.plot(fpr, tpr, color='darkorange', lw=2, label='ROC curve (area = %0.2f)' % roc_auc)
+    plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver Operating Characteristic (ROC)')
+    plt.legend(loc='lower right')
+    plt.show()
+else:
+    print("Not enough data for ROC curve plotting.")
